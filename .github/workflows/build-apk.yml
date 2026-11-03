@@ -32,6 +32,10 @@ jobs:
           npx cap add android
           npx cap sync android
 
+      - name: App-Icons erzeugen
+        continue-on-error: true
+        run: npx --yes @capacitor/assets@3 generate --android
+
       - name: Hochformat festlegen
         run: |
           sed -i 's|android:name="com.getcapacitor.myapp|android:screenOrientation="portrait" android:name="com.getcapacitor.myapp|' android/app/src/main/AndroidManifest.xml || true
