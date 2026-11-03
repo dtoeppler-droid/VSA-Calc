@@ -51,9 +51,42 @@ button.on{background:var(--eq)!important;color:var(--eqink)!important}
 #clr{margin-top:8px;font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--mute);cursor:pointer;width:100%}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){button.k{transition:none}}
+
+#splash{position:fixed;inset:0;z-index:100;background:#121212;display:flex;flex-direction:column;align-items:center;
+  padding:max(32px,env(safe-area-inset-top)) 24px max(28px,env(safe-area-inset-bottom));text-align:center;cursor:pointer;
+  transition:opacity .5s ease}
+#splash.out{opacity:0;pointer-events:none}
+.sp-in{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;max-width:460px}
+.sp-logo{width:min(44vw,176px);height:auto;fill:var(--eq);display:block}
+.sp-brand{margin-top:22px;font-size:clamp(1rem,4.8vw,1.35rem);font-weight:700;letter-spacing:.05em;color:var(--ink)}
+.sp-tag{margin-top:8px;font-size:clamp(.66rem,2.9vw,.78rem);letter-spacing:.1em;color:var(--mute)}
+.sp-sep{width:44px;height:2px;background:var(--line);margin:30px 0 26px}
+.sp-app{font-size:2.4rem;font-weight:300;color:var(--eq);letter-spacing:.01em}
+.sp-foot{font-size:.85rem;color:var(--mute);line-height:1.6}
+@media (prefers-reduced-motion:reduce){#splash{transition:none}}
 </style>
 </head>
 <body>
+<div id="splash" role="dialog" aria-label="Startbildschirm VSA Calc">
+  <div class="sp-in">
+    <svg class="sp-logo" viewBox="78 50 560 590" aria-hidden="true">
+      <defs>
+        <mask id="kh"><rect x="0" y="0" width="716" height="690" fill="#fff"/><circle cx="358" cy="300" r="28" fill="#000"/><polygon points="340,310 376,310 392,458 324,458" fill="#000"/></mask>
+        <path id="bl" d="M105 288C98 470 230 575 360 630L360 590C220 535 145 430 142 312Z"/>
+        <polygon id="wl" points="335,262 255,203 170,135 88,82 190,178 92,185 205,248 130,282 225,308 205,350 280,347 325,335"/>
+      </defs>
+      <polygon points="158,122 358,58 558,122 546,162 358,102 170,162"/>
+      <use href="#bl"/><use href="#bl" transform="translate(716 0) scale(-1 1)"/>
+      <use href="#wl"/><use href="#wl" transform="translate(716 0) scale(-1 1)"/>
+      <g mask="url(#kh)"><circle cx="358" cy="300" r="48"/><polygon points="322,320 394,320 424,487 292,487"/></g>
+    </svg>
+    <div class="sp-brand">VAULTIC SANCTUARY APPLICATIONS</div>
+    <div class="sp-tag">100% OFFLINE. ZERO ADS. YOUR DATA.</div>
+    <div class="sp-sep"></div>
+    <div class="sp-app">VSA Calc</div>
+  </div>
+  <div class="sp-foot">Herausgeber: Dennis Töppler<br><span id="verline">Version <span id="ver">__VERSION__</span></span></div>
+</div>
 <main class="calc">
   <header>
     <h1>VSA Calc</h1>
@@ -257,7 +290,7 @@ function build(host,defs){
   });
 }
 function act(d,b){
-  let t=d[3].trim();
+  let t=(d[3]||"").trim();
   if(d[1]==="fn"&&inv&&INV[d[0]])t=INV[d[0]][1];
   switch(d[1]){
     case"clr":clr();break;
@@ -326,8 +359,19 @@ $("#bSci").addEventListener("click",()=>{
 });
 try{if(localStorage.getItem("vsa-sci")==="1"){$("#sci").hidden=false;$("#bSci").setAttribute("aria-pressed","true")}}catch(e){}
 
+/* ---------- Startscreen ---------- */
+const sp=$("#splash");
+if(/__/.test($("#ver").textContent))$("#verline").remove();
+const spT=setTimeout(hideSplash,2600);
+function hideSplash(){
+  if(!sp.isConnected||sp.classList.contains("out"))return;
+  clearTimeout(spT);sp.classList.add("out");setTimeout(()=>sp.remove(),600);
+}
+sp.addEventListener("click",hideSplash);
+
 /* ---------- Tastatur ---------- */
 addEventListener("keydown",e=>{
+  if(sp.isConnected&&!sp.classList.contains("out")){hideSplash();return}
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(!$("#hist").hidden&&e.key!=="Escape")return;
   const k=e.key;

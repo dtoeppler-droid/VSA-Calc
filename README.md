@@ -2,21 +2,25 @@
 
 Taschenrechner mit Grund- und wissenschaftlichen Funktionen.
 Komplett lokal, werbefrei, ohne Tracking, funktioniert offline.
+Herausgeber: Dennis Töppler, Vaultic Sanctuary Applications (VSA).
 
 Die App ist eine einzelne HTML-Datei (`www/index.html`) und wird mit
 [Capacitor](https://capacitorjs.com) als Android-App verpackt.
 
-## APK über GitHub bauen (ohne lokale Installation)
+## APK über GitHub bauen
 
-1. Neues Repository auf GitHub anlegen und diesen Ordnerinhalt hochladen / pushen.
-2. Im Repository den Tab **Actions** öffnen. Der Workflow **Build APK** startet bei jedem Push
-   automatisch (oder manuell über **Run workflow**).
-3. Nach ca. 3–5 Minuten den Lauf öffnen und unter **Artifacts** `VSA-Calc-APK` herunterladen.
-4. ZIP entpacken, `VSA-Calc.apk` aufs Handy kopieren und installieren
-   (ggf. „Installation aus unbekannten Quellen“ erlauben).
+1. Dateien ins Repository hochladen. Den versteckten Ordner `.github` legst du über
+   **Add file → Create new file** an (Dateiname `.github/workflows/build-apk.yml` tippen).
+2. Jeder Push startet unter **Actions** den Workflow **Build APK**.
+3. Nach ca. 3–5 Minuten liegt die fertige `VSA-Calc.apk` unter **Releases** (rechts auf der Repo-Startseite)
+   und als Artifact im Actions-Lauf.
 
-**Release mit Download-Link:** Tag setzen, z. B. `git tag v1.0.0 && git push --tags`.
-Die APK hängt dann automatisch unter **Releases**.
+## Updates
+
+Die APK ist eine Debug-APK. Der Workflow zählt die Versionsnummer bei jedem Build hoch
+(`1.0.<Build-Nr.>`, steht auch auf dem Startscreen). Da der Debug-Schlüssel bei jedem Build neu
+entsteht, lässt sich eine neue APK nicht über die alte installieren: erst deinstallieren, dann installieren.
+Für echte Updates braucht es einen festen Signierschlüssel, der lässt sich bei Bedarf nachrüsten.
 
 ## Lokal bauen (optional)
 
@@ -27,14 +31,11 @@ npm install
 npx cap add android
 npx cap sync android
 cd android && ./gradlew assembleDebug
-# APK: android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ## Hinweise
 
-- Die APK ist eine **Debug-APK**: direkt installierbar, aber nicht für den Play Store signiert.
-- App ändern: nur `www/index.html` bearbeiten und pushen.
-- Name und Paket-ID stehen in `capacitor.config.json` (`de.vsa.calc`).
-- App-Icon: liegt in `assets/` (`icon-only.png`, `icon-foreground.png`, `icon-background.png`, je 1024×1024).
-  Der Workflow erzeugt daraus beim Build automatisch alle Android-Icon-Größen.
-  Zum Austauschen einfach diese drei PNGs ersetzen.
+- App ändern: `www/index.html` bearbeiten und pushen.
+- Name und Paket-ID: `capacitor.config.json`.
+- Icon und natives Startbild: `assets/` (`icon-*.png`, `splash*.png`), wird beim Build automatisch eingebunden.
+- Startscreen: steht in `www/index.html` (Element `#splash`), 2,6 Sekunden oder per Tippen schließbar.
