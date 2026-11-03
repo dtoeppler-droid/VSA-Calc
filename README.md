@@ -35,5 +35,6 @@ cd android && ./gradlew assembleDebug
 - Die APK ist eine **Debug-APK**: direkt installierbar, aber nicht für den Play Store signiert.
 - App ändern: nur `www/index.html` bearbeiten und pushen.
 - Name und Paket-ID stehen in `capacitor.config.json` (`de.vsa.calc`).
-- Eigenes Icon: Bild `assets/icon.png` (1024×1024) anlegen und
-  `npx @capacitor/assets generate --android` nach `cap add android` ausführen.
+- App-Icon: liegt in `assets/` (`icon-only.png`, `icon-foreground.png`, `icon-background.png`, je 1024×1024).
+  Der Workflow erzeugt daraus beim Build automatisch alle Android-Icon-Größen.
+  Zum Austauschen einfach diese drei PNGs ersetzen.
