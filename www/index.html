@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121212">
+<title>VSA Calc</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🧮%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#121212;--body:#121212;--key:#1E1E1E;--op:#2A2A2A;--fn:#1A1A1A;--ink:#F2F4F5;--mute:#9AA3A8;
+  --eq:#00F2FE;--eqink:#121212;--line:#2C2C2C;--err:#FF6B6B;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+button,.screen{-webkit-user-select:none;user-select:none}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+body{display:flex;justify-content:center;align-items:flex-start;
+  padding:max(12px,env(safe-area-inset-top)) 12px max(12px,env(safe-area-inset-bottom))}
+.calc{width:100%;max-width:400px;background:var(--body);border:1px solid var(--line);border-radius:20px;padding:14px}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+h1{font-size:1rem;font-weight:700;letter-spacing:.02em;margin:0}
+.tools{display:flex;gap:6px}
+.tools button{font:inherit;font-size:.8rem;padding:6px 10px;border-radius:8px;border:1px solid var(--line);
+  background:transparent;color:var(--mute);cursor:pointer}
+.tools button[aria-pressed="true"]{background:var(--op);color:var(--ink);border-color:transparent}
+.screen{min-height:132px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;
+  padding:8px 6px 12px;text-align:right;position:relative}
+#mode{position:absolute;left:6px;top:6px;font-size:.75rem;color:var(--mute)}
+#prev,#pre{min-height:1.4em;font-size:1rem;color:var(--mute);font-variant-numeric:tabular-nums;word-break:break-all}
+#pre{color:var(--eq)}
+#pre.err{color:var(--err)}
+#cur{font-size:3rem;font-weight:300;line-height:1.1;font-variant-numeric:tabular-nums;word-break:break-all;margin:2px 0}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+#sci{margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+button.k{font:inherit;font-size:1.35rem;min-height:58px;border:0;border-radius:14px;background:var(--key);
+  color:var(--ink);cursor:pointer;transition:transform .06s,filter .1s}
+button.k:active{transform:scale(.96);filter:brightness(.93)}
+button.k:focus-visible,.tools button:focus-visible,#hist li:focus-visible{outline:3px solid var(--eq);outline-offset:2px}
+#sci button.k{min-height:44px;font-size:1rem;background:var(--fn)}
+button.op{background:var(--op);color:var(--eq)}
+button.eq{background:var(--eq);color:var(--eqink);font-weight:600}
+button.on{background:var(--eq)!important;color:var(--eqink)!important}
+#hist{max-height:420px;overflow-y:auto;border-top:1px solid var(--line);padding-top:6px}
+#hist ul{list-style:none;margin:0;padding:0}
+#hist li{padding:10px 6px;border-bottom:1px solid var(--line);cursor:pointer;text-align:right;border-radius:8px}
+#hist li small{display:block;color:var(--mute);word-break:break-all}
+#hist li b{font-weight:500;font-size:1.2rem;word-break:break-all}
+#hist .none{color:var(--mute);padding:24px 6px;text-align:center}
+#clr{margin-top:8px;font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--mute);cursor:pointer;width:100%}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){button.k{transition:none}}
+</style>
+</head>
+<body>
+<main class="calc">
+  <header>
+    <h1>VSA Calc</h1>
+    <div class="tools">
+      <button id="bSci" aria-pressed="false">Wissenschaftlich</button>
+      <button id="bHist" aria-pressed="false">Verlauf</button>
+    </div>
+  </header>
+  <section class="screen" aria-live="polite">
+    <span id="mode"></span>
+    <div id="prev"></div>
+    <div id="cur">0</div>
+    <div id="pre"></div>
+  </section>
+  <section id="hist" hidden>
+    <ul id="hl"></ul>
+    <button id="clr">Verlauf löschen</button>
+  </section>
+  <div id="pad">
+    <div id="sci" class="grid" hidden></div>
+    <div id="main" class="grid"></div>
+  </div>
+</main>
+<script>
+"use strict";
+const FN=["asin","acos","atan","sin","cos","tan","ln","log","√"];
+let expr="",last="",err="",done=false,deg=true,inv=false,hist=[];
+try{hist=JSON.parse(localStorage.getItem("vsa-hist")||"[]")}catch(e){}
+const $=s=>document.querySelector(s);
+
+/* ---------- Rechenkern ---------- */
+function tok(s){
+  const t=[],re=/(\d*\.\d+|\d+\.?|asin|acos|atan|sin|cos|tan|ln|log|√|π|e|[+\-×÷^!%()])/y;
+  while(re.lastIndex<s.length){const m=re.exec(s);if(!m)throw"x";t.push(m[1]);}
+  return t;
+}
+function fact(v){
+  if(v<0||v>170||Math.floor(v)!==v)throw"x";
+  let r=1;for(let i=2;i<=v;i++)r*=i;return r;
+}
+const snap=x=>Math.abs(x)<1e-14?0:x;
+function F(n,v){
+  const k=deg?Math.PI/180:1;
+  switch(n){
+    case"sin":return deg&&v%180===0?0:snap(Math.sin(v*k));
+    case"cos":return deg&&(v-90)%180===0?0:snap(Math.cos(v*k));
+    case"tan":
+      if(deg&&v%180===0)return 0;
+      if(deg&&(v-90)%180===0)throw"x";
+      return snap(Math.tan(v*k));
+    case"asin":if(Math.abs(v)>1)throw"x";return Math.asin(v)/k;
+    case"acos":if(Math.abs(v)>1)throw"x";return Math.acos(v)/k;
+    case"atan":return Math.atan(v)/k;
+    case"ln":if(v<=0)throw"x";return Math.log(v);
+    case"log":if(v<=0)throw"x";return Math.log10(v);
+    case"√":if(v<0)throw"x";return Math.sqrt(v);
+  }
+}
+function evalExpr(s){
+  const t=tok(s);let i=0;
+  const pk=()=>t[i],nx=()=>t[i++];
+  const isNum=x=>x!==undefined&&/^[\d.]/.test(x);
+  const isStart=x=>x!==undefined&&(isNum(x)||x==="π"||x==="e"||x==="("||FN.includes(x));
+  const close=()=>{if(pk()===")")nx();else if(pk()!==undefined)throw"x";};
+  function E(){let v=T();while(pk()==="+"||pk()==="-")v=nx()==="+"?v+T():v-T();return v}
+  function T(){
+    let v=U();
+    for(;;){
+      const p=pk();
+      if(p==="×"){nx();v*=U()}
+      else if(p==="÷"){nx();const d=U();if(d===0)throw"div";v/=d}
+      else if(isStart(p))v*=U();
+      else return v;
+    }
+  }
+  function U(){
+    if(pk()==="-"){nx();return -U()}
+    if(pk()==="+"){nx();return U()}
+    const b=Q();
+    if(pk()==="^"){nx();return Math.pow(b,U())}
+    return b;
+  }
+  function Q(){
+    let v=A();
+    while(pk()==="!"||pk()==="%")v=nx()==="!"?fact(v):v/100;
+    return v;
+  }
+  function A(){
+    const x=nx();
+    if(x===undefined)throw"x";
+    if(isNum(x))return Number(x);
+    if(x==="π")return Math.PI;
+    if(x==="e")return Math.E;
+    if(x==="("){const v=E();close();return v}
+    if(FN.includes(x)){if(pk()!=="(")throw"x";nx();const v=E();close();return F(x,v)}
+    throw"x";
+  }
+  const r=E();
+  if(i<t.length)throw"x";
+  if(!isFinite(r))throw"x";
+  return r;
+}
+function fmt(v){
+  let n=parseFloat(v.toPrecision(12));
+  if(Math.abs(n)<1e-14)n=0;
+  let s=String(n);
+  if(/e/.test(s))s="("+s.replace(/e\+?(-?)/,"×10^$1")+")";
+  return s;
+}
+
+/* ---------- Eingabe ---------- */
+function ins(kind,t){
+  err="";
+  if(done){
+    if(kind==="num"||kind==="fn")expr="";
+    else if(kind==="par"){render();return}
+    else if(/^[\^!%]/.test(t)&&expr[0]==="-")expr="("+expr+")";
+    done=false;last="";
+  }
+  const l=expr.slice(-1);
+  const isOp=c=>"+-×÷^".includes(c);
+  if(kind==="op"){
+    if(!expr){if(t==="-")expr="-";}
+    else if(l==="("){if(t==="-")expr+=t;}
+    else if(isOp(l)){
+      if(t==="-"&&"×÷^".includes(l))expr+=t;
+      else expr=expr.replace(/[+\-×÷^]+$/,"")+t;
+    }else expr+=t;
+  }else if(kind==="num"){
+    if(t==="."){
+      if(/\d*\.\d*$/.test(expr))return render();
+      if(!/\d$/.test(expr))t="0.";
+    }else if(/\d/.test(t)&&/(^|[^\d.])0$/.test(expr))expr=expr.slice(0,-1);
+    expr+=t;
+  }else if(kind==="fn"){
+    expr+=t;
+  }else if(kind==="post"){
+    if(!expr||isOp(l)||l==="(")return render();
+    expr+=t;
+  }else if(kind==="par"){
+    const open=(expr.match(/\(/g)||[]).length,cl=(expr.match(/\)/g)||[]).length;
+    if(open>cl&&!isOp(l)&&l!=="(")expr+=")";
+  }
+  render();
+}
+function back(){
+  err="";
+  if(done){done=false;last=""}
+  expr=expr.replace(/(asin\(|acos\(|atan\(|sin\(|cos\(|tan\(|ln\(|log\(|√\(|.)$/u,"");
+  render();
+}
+function clr(){expr="";last="";err="";done=false;render()}
+function sign(){
+  err="";
+  const m=expr.match(/(^|[(+\-×÷^])(-?)(\d*\.?\d*)$/);
+  if(m&&m[3]!==""){
+    const p=expr.length-m[0].length+m[1].length;
+    expr=expr.slice(0,p)+(m[2]?"":"-")+m[3];
+  }
+  if(done){done=false;last=""}
+  render();
+}
+function equals(){
+  if(!expr)return;
+  try{
+    const res=fmt(evalExpr(expr));
+    if(res!==expr){
+      hist.unshift({e:expr,r:res});hist=hist.slice(0,50);
+      try{localStorage.setItem("vsa-hist",JSON.stringify(hist))}catch(e){}
+      last=expr+" =";
+    }
+    expr=res;done=true;err="";
+  }catch(e){err=e==="div"?"Division durch 0 nicht möglich":"Ungültiger Ausdruck"}
+  render();
+}
+
+/* ---------- Tasten ---------- */
+const MAIN=[
+  ["AC","clr","op"],["⌫","back","op"],["%","post","op","%"],["÷","op","op","÷"],
+  ["7","num","","7"],["8","num","","8"],["9","num","","9"],["×","op","op","×"],
+  ["4","num","","4"],["5","num","","5"],["6","num","","6"],["−","op","op","-"],
+  ["1","num","","1"],["2","num","","2"],["3","num","","3"],["+","op","op","+"],
+  ["±","sign","op"],["0","num","","0"],[",","num","",". "],["=","eq","eq"]
+];
+const SCI=[
+  ["2nd","inv","",""],["sin","fn","","sin("],["cos","fn","","cos("],["tan","fn","","tan("],
+  ["(","fn","","("],[")","par","",")"],["ln","fn","","ln("],["log","fn","","log("],
+  ["π","num","","π"],["e","num","","e"],["√","fn","","√("],["x²","post","","^2"],
+  ["xʸ","op","","^"],["n!","post","","!"],["1/x","fn","","1÷("],["deg","deg","",""]
+];
+const INV={"sin":["sin⁻¹","asin("],"cos":["cos⁻¹","acos("],"tan":["tan⁻¹","atan("],"ln":["eˣ","e^("],"log":["10ˣ","10^("]};
+const btns=[];
+function build(host,defs){
+  defs.forEach(d=>{
+    const b=document.createElement("button");
+    b.type="button";b.className="k "+d[2];b.textContent=d[0];
+    if(d[0]==="=")b.setAttribute("aria-label","Ergebnis");
+    if(d[0]==="⌫")b.setAttribute("aria-label","Letztes Zeichen löschen");
+    b.addEventListener("click",()=>act(d,b));
+    host.appendChild(b);btns.push([d,b]);
+  });
+}
+function act(d,b){
+  let t=d[3].trim();
+  if(d[1]==="fn"&&inv&&INV[d[0]])t=INV[d[0]][1];
+  switch(d[1]){
+    case"clr":clr();break;
+    case"back":back();break;
+    case"sign":sign();break;
+    case"eq":equals();break;
+    case"inv":inv=!inv;render();break;
+    case"deg":deg=!deg;render();break;
+    default:ins(d[1],t);
+  }
+}
+build($("#sci"),SCI);build($("#main"),MAIN);
+
+/* ---------- Anzeige ---------- */
+const show=s=>s.replace(/\./g,",").replace(/-/g,"−");
+function render(){
+  const cur=$("#cur"),n=expr.length;
+  cur.textContent=show(expr||"0");
+  cur.style.fontSize=n>20?"1.5rem":n>13?"2.1rem":"3rem";
+  $("#prev").textContent=show(last);
+  const pre=$("#pre");pre.className="";pre.textContent="";
+  if(err){pre.className="err";pre.textContent=err}
+  else if(!done&&expr&&/[^\d.,]/.test(expr)){
+    try{const r=fmt(evalExpr(expr));if(r!==expr)pre.textContent="= "+show(r)}catch(e){}
+  }
+  $("#mode").textContent=$("#sci").hidden?"":(deg?"DEG":"RAD");
+  btns.forEach(([d,b])=>{
+    if(d[1]==="fn"&&INV[d[0]])b.textContent=inv?INV[d[0]][0]:d[0];
+    if(d[1]==="inv")b.classList.toggle("on",inv);
+    if(d[1]==="deg")b.textContent=deg?"Grad":"Rad";
+  });
+}
+function renderHist(){
+  const ul=$("#hl");ul.innerHTML="";
+  if(!hist.length){
+    const li=document.createElement("li");li.className="none";li.textContent="Noch keine Berechnungen.";
+    ul.appendChild(li);$("#clr").hidden=true;return;
+  }
+  $("#clr").hidden=false;
+  hist.forEach(h=>{
+    const li=document.createElement("li");li.tabIndex=0;
+    const s=document.createElement("small"),b=document.createElement("b");
+    s.textContent=show(h.e)+" =";b.textContent=show(h.r);
+    li.append(s,b);
+    const use=()=>{expr=h.r;last="";done=false;err="";toggleHist(false);render()};
+    li.addEventListener("click",use);
+    li.addEventListener("keydown",e=>{if(e.key==="Enter"){e.stopPropagation();use()}});
+    ul.appendChild(li);
+  });
+}
+function toggleHist(open){
+  $("#hist").hidden=!open;$("#pad").hidden=open;
+  $("#bHist").setAttribute("aria-pressed",open);
+  if(open)renderHist();
+}
+$("#bHist").addEventListener("click",()=>toggleHist($("#hist").hidden));
+$("#clr").addEventListener("click",()=>{
+  hist=[];try{localStorage.removeItem("vsa-hist")}catch(e){}
+  renderHist();
+});
+$("#bSci").addEventListener("click",()=>{
+  const s=$("#sci");s.hidden=!s.hidden;
+  $("#bSci").setAttribute("aria-pressed",!s.hidden);
+  try{localStorage.setItem("vsa-sci",s.hidden?"0":"1")}catch(e){}
+  render();
+});
+try{if(localStorage.getItem("vsa-sci")==="1"){$("#sci").hidden=false;$("#bSci").setAttribute("aria-pressed","true")}}catch(e){}
+
+/* ---------- Tastatur ---------- */
+addEventListener("keydown",e=>{
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
+  if(!$("#hist").hidden&&e.key!=="Escape")return;
+  const k=e.key;
+  if(/^\d$/.test(k))ins("num",k);
+  else if(k==="."||k===",")ins("num",".");
+  else if(k==="+"||k==="-")ins("op",k);
+  else if(k==="*")ins("op","×");
+  else if(k==="/"){e.preventDefault();ins("op","÷")}
+  else if(k==="^")ins("op","^");
+  else if(k==="(")ins("fn","(");
+  else if(k===")")ins("par",")");
+  else if(k==="!")ins("post","!");
+  else if(k==="%")ins("post","%");
+  else if(k==="Enter"||k==="="){e.preventDefault();equals()}
+  else if(k==="Backspace")back();
+  else if(k==="Escape"){if(!$("#hist").hidden)toggleHist(false);else clr()}
+  else return;
+});
+render();
+</script>
+</body>
+</html>
